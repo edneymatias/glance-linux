@@ -177,7 +177,7 @@
      logEvent("lock-requested")
      queueSessionLock()
  
-@@ -391,13 +539,32 @@
+@@ -391,13 +539,35 @@
  
    function submitPassword(value) {
      var password = String(value || "")
@@ -188,7 +188,10 @@
 +    // for the password: answer that one. A second conversation would leave
 +    // the first one waiting for an answer that never comes.
 +    if (passwordPam.active && passwordPam.responseRequired) {
-+      if (password.length === 0) return
++      if (password.length === 0) {
++        retryFaceScan()
++        return
++      }
 +      runWake()
 +      failureMessage = ""
 +      pendingPassword = password
@@ -212,7 +215,7 @@
      if (!passwordPam.start()) {
        handlePasswordFailure()
        return
-@@ -406,8 +573,24 @@
+@@ -406,8 +576,35 @@
      Qt.callLater(respondToPasswordPrompt)
    }
  
@@ -229,6 +232,17 @@
 +    startPasswordPam()
 +  }
 +
++  // The first scan missed and PAM is waiting for a password. Enter on the
++  // empty field asks for another scan, so coming back to a locked screen is
++  // sit down, Enter, rather than only the password. abort() delivers no
++  // completion signal, so the next conversation is started here.
++  function retryFaceScan() {
++    if (!faceUnlockAvailable) return
++    passwordPam.abort()
++    clearFace()
++    Qt.callLater(startFaceScan)
++  }
++
    function respondToPasswordPrompt() {
 -    if (!authenticatingPassword || !passwordPam.active || !passwordPam.responseRequired) return
 +    if (!passwordPam.active || !passwordPam.responseRequired) return
@@ -238,7 +252,7 @@
      passwordPam.respond(pendingPassword)
    }
  
-@@ -557,6 +740,10 @@
+@@ -557,6 +754,10 @@
          displaysBlank: root.screenBlank(lockSurface.screen ? lockSurface.screen.name : "")
          powerSaverActive: root.powerSaverActive
          passwordText: root.enteredPassword
@@ -249,7 +263,7 @@
          onPasswordTextEdited: function(password) { root.enteredPassword = password }
          onSubmitPassword: function(password) { root.submitPassword(password) }
          onClearFailureRequested: root.failureMessage = ""
-@@ -567,6 +754,29 @@
+@@ -567,6 +768,29 @@
    }
  
    PanelWindow {
@@ -279,7 +293,7 @@
      id: previewWindow
      // Right-to-left languages read this window mirrored.
      Binding { target: previewWindow.contentItem; property: "LayoutMirroring.enabled"; value: Commons.I18n.rightToLeft }
-@@ -594,6 +804,10 @@
+@@ -594,6 +818,10 @@
        loadBackground: root.previewVisible
        powerSaverActive: root.powerSaverActive
        passwordText: ""
@@ -290,7 +304,7 @@
      }
  
      MouseArea {
-@@ -608,23 +822,102 @@
+@@ -608,23 +836,102 @@
      config: "omarchy-lock-password"
      user: root.userName
  
@@ -399,7 +413,7 @@
    PamContext {
      id: fingerprintPam
      config: "omarchy-lock-fingerprint"
-@@ -912,7 +1205,12 @@
+@@ -912,7 +1219,12 @@
      path: "/etc/pam.d/omarchy-lock-password"
      watchChanges: true
      printErrors: false
@@ -413,7 +427,7 @@
      onLoadFailed: root.passwordPamConfigured = false
      onFileChanged: reload()
    }
-@@ -961,6 +1259,9 @@
+@@ -961,6 +1273,9 @@
          passwordPam: root.passwordPamConfigured,
          fingerprint: root.fingerprintConfigured,
          fingerprintUnavailable: root.fingerprintUnavailable,
@@ -423,7 +437,7 @@
          authenticating: root.authenticating,
          lastEvent: root.lastEvent,
          lastEventAt: root.lastEventAt
-@@ -978,5 +1279,27 @@
+@@ -978,5 +1293,27 @@
        root.previewVisible = false
        return "ok"
      }

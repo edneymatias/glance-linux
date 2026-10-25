@@ -545,7 +545,10 @@ Item {
     // for the password: answer that one. A second conversation would leave
     // the first one waiting for an answer that never comes.
     if (passwordPam.active && passwordPam.responseRequired) {
-      if (password.length === 0) return
+      if (password.length === 0) {
+        retryFaceScan()
+        return
+      }
       runWake()
       failureMessage = ""
       pendingPassword = password
@@ -584,6 +587,17 @@ Item {
     pendingPassword = ""
     authenticatingPassword = true
     startPasswordPam()
+  }
+
+  // The first scan missed and PAM is waiting for a password. Enter on the
+  // empty field asks for another scan, so coming back to a locked screen is
+  // sit down, Enter, rather than only the password. abort() delivers no
+  // completion signal, so the next conversation is started here.
+  function retryFaceScan() {
+    if (!faceUnlockAvailable) return
+    passwordPam.abort()
+    clearFace()
+    Qt.callLater(startFaceScan)
   }
 
   function respondToPasswordPrompt() {
